@@ -37,17 +37,30 @@ signal inner_memory : std_logic_vector(23 downto 0) <= ( others => 0 );
 --Counter up to 24 bits in memory
 signal memory_counter : std_logic_vector(23 downto 0) <=  ( others => 0 );
 
-begin
+--Master Clock signal
+signal master_clk_inner : std_logic <= 0;
 
-memory_count : process( RESET, CLK ) is
 begin
-    if( RESET = 1) then
-        memory_counter <= ( others => 0 );
-    elsif ( CLK'event and CLK = '1' ) then 
-        memory_counter <= memory_counter + 1 ;
+--Master Clock Control
+master_clock_count : process( RESET, CLK ) is
+signal count : std_logic_vector(1 downto 0) <= "00";
+begin
+    if ( RESET = 1 ) then
+        count <= ( others => '0' );
+    elsif( CLK'event and CLK = '1' ) then
+        count <= count + 1;
+        if( count = "11" ) then
+            count <= ( others => '0' );
+            master_clk_inner <= '1';
+        else 
+            master_clk_inner <= '0';
+        end if;
     end if;
-end process memory_count;
+end process master_clock_count;
 
+master_clk <= master_clk_inner;
+
+--State Control
 state_transition : process( RESET, CLK ) is
 begin
     if( RESET = 1) then
@@ -80,12 +93,29 @@ begin
     end case;
 end process basic_transitions; 
 
-recieve_data : process( CLK ) then
+--Data Transmition Control
+memory_count : process( RESET, master_clk_inner ) is
+begin
+    if( RESET = 1) then
+        memory_counter <= ( others => 0 );
+    elsif ( master_clk_inner'event and master_clk_inner = '1' ) then 
+        memory_counter <= memory_counter + 1 ;
+    end if;
+end process memory_count;
+
+recieve_data : process( master_clk_inner ) then
 begin 
-    if( CLK'event and CLK = 1 ) then
+    if( master_clk_inner'event and master_clk_inner = 1 ) then
         inner_memory <= inner_memory(inner_memory'high - 1 downto inner_memory'low ) & miso;
     end if;
 end process recieve_data;
+
+transmit_data : process( master_clk_inner ) then
+begin 
+    if( master_clk_inner'event and master_clk_inner = 1 ) then
+        inner_memory <= inner_memory(inner_memory'high - 1 downto inner_memory'low ) & miso;
+    end if;
+end process transmit_data;
 
 
 end architecture behavioral;
